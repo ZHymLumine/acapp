@@ -133,6 +133,50 @@ class GameMap extends AcGameObject {
 }
 
 
+class Particle extends AcGameObject {
+    constructor(playground, x, y, radius, vx, vy, color, speed, move_length){
+        super();
+        this.playground = playground;
+        this.ctx = this.playground.game_map.ctx;
+        this.x = x;
+        this.y = y;
+        this.radius = radius;
+        this.vx = vx;
+        this.vy = vy;
+        this.color = color;
+        this.speed = speed;
+        this.move_length = move_length;
+        this.friction = 0.9;
+        this.eps = 1;
+    }
+
+
+    start() {
+    }
+
+    update() {
+        // 粒子移动距离为0或速度为0时粒子消失
+        if (this.move_length < this.eps || this.speed < this.eps) {
+            this.destroy();
+            return false;
+        }
+
+        let moved = Math.min(this.move_length, this.speed * this.timedelta / 1000);
+        this.x += this.vx * moved;
+        this.y += this.vy * moved;
+        this.speed *= this.friction;    // 速度衰减
+        this.move_length -= moved;
+        this.render();
+    }
+
+    render() {
+        this.ctx.beginPath();
+        this.ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+        this.ctx.fillStyle = this.color;
+        this.ctx.fill();
+    }
+
+}
 class Player extends AcGameObject {
     constructor(playground, x, y, radius, color, speed, is_me) {
         super();
@@ -148,9 +192,8 @@ class Player extends AcGameObject {
         this.speed = speed;
         this.is_me = is_me;
         this.eps = 0.1;
-        this.friction = 0.9 // 摩擦系数，作用于受击速度
-        this.spent_time = 0;
-
+        this.friction = 0.9     // 摩擦系数，作用于受击速度
+        this.spent_time = 0;    // 游戏时长
         this.cur_skill = null; //当前技能（非快捷施法）
     }
 
@@ -164,6 +207,8 @@ class Player extends AcGameObject {
         }
     }
 
+
+    // 监听事件
     add_listening_events() {
         let outer = this;
         this.playground.game_map.$canvas.on("contextmenu", function() {     //取消右键菜单
@@ -179,13 +224,19 @@ class Player extends AcGameObject {
                 outer.cur_skill = null;
             }
         });
-
         //获取键盘事件
         $(window).keydown(function(e) {
             if (e.which === 81) {    // q键
                 outer.cur_skill = "fireball";
                 return false;
             }
+        });
+    }
+
+
+    detach_listening_events() {
+        this.playground.game_map.$canvas.mousedown(function() {
+            return false;
         });
     }
 
@@ -220,8 +271,21 @@ class Player extends AcGameObject {
 
     // 受到攻击
     is_attacked(angle, damage) {
+        // 产生受到攻击时的粒子效果
+        for (let i = 0; i < 20 + Math.random() * 10; i ++) {
+            let x = this.x, y = this.y;
+            let radius = this.radius * Math.random() * 0.1;
+            let angle = Math.PI * 2 * Math.random(); //随机粒子方向
+            let vx = Math.cos(angle), vy = Math.sin(angle);
+            let color = this.color;
+            let speed = this.speed * 50;
+            let move_length = this.radius * Math.random() * 5;
+            new Particle(this.playground, x, y, radius, vx, vy, color, speed, move_length);
+        }
+
         this.radius -= damage;      //球的大小作为血量
         if (this.radius < 10) {
+            this.dead = true;
             this.destroy();
             return false;
         }
@@ -234,8 +298,21 @@ class Player extends AcGameObject {
 
 
     update() {
+        this.spent_time += this.timedelta / 1000;   //游戏经过时间
 
-        if (this.damage_speed > 10) {   // 受到攻击
+        // 游戏时间大于4秒，每300帧AI发射一个火球
+        if(!this.is_me && this.spent_time > 4 && Math.random() < 1 / 180.0) {
+            console.log("players length", this.playground.players.length);
+            let player = this.playground.players[Math.floor(Math.random() * this.playground.players.length)]; //随机一个目标
+            if (this !== player) {
+                //射向0.3秒后的位置
+                let tx = player.x + player.speed * player.vx * this.timedelta / 1000 * 0.3;
+                let ty = player.y + player.speed * player.vy * this.timedelta / 1000 * 0.3;
+                this.shoot_fireball(tx, ty);
+            }
+        }
+
+        if (this.damage_speed > 10) {   // 受到攻击, 后退
             this.vx = this.vy = 0;
             this.move_length = 0;
             this.x += this.damage_x * this.damage_speed * this.timedelta / 1000;
@@ -251,7 +328,7 @@ class Player extends AcGameObject {
                     this.move_to(tx, ty);
                 }
             } else {
-                let moved = Math.min(this.move_length, this.speed * this.timedelta / 1000);  //防止移动出界
+                let moved = Math.min(this.move_length, this.speed * this.timedelta / 1000);  //求移动距离
                 this.x += this.vx * moved;
                 this.y += this.vy * moved;
                 this.move_length -= moved;
@@ -265,6 +342,19 @@ class Player extends AcGameObject {
         this.ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
         this.ctx.fillStyle = this.color;
         this.ctx.fill();
+    }
+
+    on_destroy() {
+        for (let i = 0; i < this.playground.players.length; i++) {
+            let player = this.playground.players[i];
+            if (this === player) {
+                if (this.is_me) {
+                    this.detach_listening_events();
+                    console.log("me is out");
+                }
+                this.playground.players.splice(i, 1);
+            }
+        }
     }
 }
 class FireBall extends AcGameObject {
