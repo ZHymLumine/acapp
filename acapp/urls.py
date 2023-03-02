@@ -13,12 +13,10 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-
-# 全局路由
 from django.contrib import admin
 from django.urls import path, include
 
 urlpatterns = [
-    path('', include('game.urls.index')), #url无任何后缀时，进入game/urls/index.py 查找路由
+    path('', include('game.urls.index')),
     path('admin/', admin.site.urls),
 ]
