@@ -309,7 +309,7 @@ class Player extends AcGameObject {
         this.spent_time += this.timedelta / 1000;   //游戏经过时间
 
         // 游戏时间大于4秒，每300帧AI发射一个火球
-        if(!this.is_me && this.spent_time > 4 && Math.random() < 1 / 180.0) {
+        if(!this.is_me && this.spent_time > 4 && Math.random() < 1 / 300.0) {
             let player = this.playground.players[Math.floor(Math.random() * this.playground.players.length)]; //随机一个目标
             if (this !== player) {
                 //射向0.3秒后的位置
@@ -658,7 +658,7 @@ class Settings {
     register_on_remote() {  // 在远程服务器上注册
         let outer = this;
         let username = this.$register_username.val();
-        let password = this.$register_pawssword.val();
+        let password = this.$register_password.val();
         let password_confirm = this.$register_password_confirm.val();
         this.$register_error_message.empty();
 
@@ -672,7 +672,7 @@ class Settings {
             },
             success: function(resp){
                 console.log(resp)
-                if (resp.result === "sucesss") {
+                if (resp.result === "success") {
                     location.reload();
                 } else{
                     outer.$register_error_message.html(resp.result);

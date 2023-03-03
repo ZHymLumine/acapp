@@ -128,7 +128,7 @@ class Player extends AcGameObject {
         this.spent_time += this.timedelta / 1000;   //游戏经过时间
 
         // 游戏时间大于4秒，每300帧AI发射一个火球
-        if(!this.is_me && this.spent_time > 4 && Math.random() < 1 / 180.0) {
+        if(!this.is_me && this.spent_time > 4 && Math.random() < 1 / 300.0) {
             let player = this.playground.players[Math.floor(Math.random() * this.playground.players.length)]; //随机一个目标
             if (this !== player) {
                 //射向0.3秒后的位置

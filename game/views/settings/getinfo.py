@@ -18,7 +18,7 @@ def getinfo_web(request):
             'result': "not login"
         })
     else :
-        player = Player.objects.all()[0]    # 取出数据库中的第一个用户
+        player = Player.objects.get(user=user)    # 取出数据库中的第一个用户
         return JsonResponse({
             'result' : "success",
             'username' : player.user.username,

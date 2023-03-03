@@ -171,7 +171,7 @@ class Settings {
     register_on_remote() {  // 在远程服务器上注册
         let outer = this;
         let username = this.$register_username.val();
-        let password = this.$register_pawssword.val();
+        let password = this.$register_password.val();
         let password_confirm = this.$register_password_confirm.val();
         this.$register_error_message.empty();
 
@@ -185,7 +185,7 @@ class Settings {
             },
             success: function(resp){
                 console.log(resp)
-                if (resp.result === "sucesss") {
+                if (resp.result === "success") {
                     location.reload();
                 } else{
                     outer.$register_error_message.html(resp.result);
