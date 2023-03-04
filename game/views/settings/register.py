@@ -25,7 +25,7 @@ def register(request):
     user = User(username=username)
     user.set_password(password)
     user.save()
-    Player.objects.create(user=user, photo="https://i.pinimg.com/280x280_RS/a9/fd/de/a9fddeae72db03d18dd5c8246410e53a.jpg")
+    Player.objects.create(user=user, photo="https://i.pinimg.com/280x280_RS/a9/fd/de/a9fddeae72db03d18dd5c8246410e53a.jpg") # 默认头像
     login(request, user)
     return JsonResponse({
         'result': "success",
