@@ -23,7 +23,6 @@ class AcGamePlayground {
     }
 
     resize() {
-        console.log("resize");
         this.width = this.$playground.width();
         this.height = this.$playground.height();
         let unit = Math.min(this.width / 16, this.height / 9);  // 以最小的作为基准，渲染
