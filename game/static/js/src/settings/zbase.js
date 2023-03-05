@@ -2,7 +2,7 @@ class Settings {
     constructor(root) {
         this.root = root;
         this.platform = "WEB";
-        if (this.root.AcWingOS)  this.platmform = "ACAPP";
+        if (this.root.AcWingOS)  this.platform = "ACAPP";
 
         this.username = "";
         this.photo = "";
@@ -112,8 +112,12 @@ class Settings {
     }
 
     start() {
-        this.getinfo();
-        this.add_listening_events();
+        if (this.platform === "ACAPP") {    // ACAPP端访问
+            this.getinfo_acapp();
+        } else {                            // WEB端访问
+            this.getinfo_web();
+            this.add_listening_events();
+        }
     }
 
     add_listening_events() {
@@ -242,7 +246,37 @@ class Settings {
         this.$login.show();
     }
 
-    getinfo() {
+
+    acapp_login(appid, redirect_uri, scope, state) {    // ACAPP端登录
+        let outer = this;
+        // resp中存储redirect_uri函数(acapp/receive_code)返回的Json信息
+        this.root.AcWingOS.api.oauth2.authorize(appid, redirect_uri, scope, state, function(resp) {
+            console.log("called from acapp_login function");
+            console.log(resp);
+            if (resp.result === "success") {
+                outer.username = resp.username;
+                outer.photo = resp.photo;
+                outer.hide();
+                outer.root.menu.show();
+            }
+        });
+    }
+
+    getinfo_acapp() {
+        let outer = this;
+
+        $.ajax({
+            url: "https://app4877.acapp.acwing.com.cn/settings/acwing/acapp/apply_code/",
+            type: "GET",
+            success: function(resp) {
+                if (resp.result === "success") {
+                    outer.acapp_login(resp.appid, resp.redirect_uri, resp.scope, resp.state);
+                }
+            }
+        });
+    }
+
+    getinfo_web() {
         let outer = this;
         $.ajax({
             url: "https://app4877.acapp.acwing.com.cn/settings/getinfo/",
