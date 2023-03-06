@@ -229,7 +229,7 @@ class Player extends AcGameObject {
     start() {
         if (this.character === "me") {    //如果是自己，用鼠标键盘操作
             this.add_listening_events();
-        } else {    //AI敌人
+        } else if (this.character === "robot"){    //AI敌人
             let tx = Math.random() * this.playground.width / this.playground.scale;     //随机一个地点，让敌人走过去
             let ty = Math.random() * this.playground.height / this.playground.scale;
             this.move_to(tx, ty);
@@ -489,6 +489,7 @@ class MultiPlayerSocket {
     }
 
     start() {
+        this.receive();
     }
 
     // 接收服务器发回的json数据
@@ -498,12 +499,12 @@ class MultiPlayerSocket {
         this.ws.onmessage = function(e) {
             let data = JSON.parse(e.data);  // 将字符串转成字典
             let uuid = data.uuid;
-            if (uuid == outer.uuid) {       // 忽略服务器发给自己的消息
+            if (uuid === outer.uuid) {       // 忽略服务器发给自己的消息
                 return false;
             }
 
             let event = data.event;
-            if (event == "create_player") {     // 根据类型调用相应的函数处理
+            if (event === "create_player") {     // 根据类型调用相应的函数处理
                 outer.receive_create_player(uuid, data.username, data.photo);
             }
         }
@@ -518,6 +519,10 @@ class MultiPlayerSocket {
             'username': username,
             'photo': photo,
         }));
+        /*
+        this.ws.send(JSON.stringify({
+            'message': "hello acapp server",
+        }))*/
     }
 
     receive_create_player(uuid, username, photo) {

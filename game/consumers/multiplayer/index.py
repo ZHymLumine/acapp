@@ -10,12 +10,12 @@ class MultiPlayer(AsyncWebsocketConsumer):
         for i in range(1000):   # 上限1000个游戏房间
             name = "room-%d" % (i)
             # 当前房间为空，或房间内人数不到ROOM_CAPACITY
-            if not cache.has_key(name) or len(cache.get(name)) < setttings.ROOM_CAPACITY:
+            if not cache.has_key(name) or len(cache.get(name)) < settings.ROOM_CAPACITY:
                 self.room_name = name
                 break
         # 没有空闲房间，不创建连接
         if not self.room_name:
-            return;
+            return
 
         # 有空闲房间，创建与server的连接
         await self.accept()

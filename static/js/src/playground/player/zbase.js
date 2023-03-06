@@ -28,7 +28,7 @@ class Player extends AcGameObject {
     start() {
         if (this.character === "me") {    //如果是自己，用鼠标键盘操作
             this.add_listening_events();
-        } else {    //AI敌人
+        } else if (this.character === "robot"){    //AI敌人
             let tx = Math.random() * this.playground.width / this.playground.scale;     //随机一个地点，让敌人走过去
             let ty = Math.random() * this.playground.height / this.playground.scale;
             this.move_to(tx, ty);

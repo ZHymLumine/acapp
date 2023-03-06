@@ -8,6 +8,7 @@ class MultiPlayerSocket {
     }
 
     start() {
+        this.receive();
     }
 
     // 接收服务器发回的json数据
@@ -17,12 +18,12 @@ class MultiPlayerSocket {
         this.ws.onmessage = function(e) {
             let data = JSON.parse(e.data);  // 将字符串转成字典
             let uuid = data.uuid;
-            if (uuid == outer.uuid) {       // 忽略服务器发给自己的消息
+            if (uuid === outer.uuid) {       // 忽略服务器发给自己的消息
                 return false;
             }
 
             let event = data.event;
-            if (event == "create_player") {     // 根据类型调用相应的函数处理
+            if (event === "create_player") {     // 根据类型调用相应的函数处理
                 outer.receive_create_player(uuid, data.username, data.photo);
             }
         }
@@ -37,6 +38,10 @@ class MultiPlayerSocket {
             'username': username,
             'photo': photo,
         }));
+        /*
+        this.ws.send(JSON.stringify({
+            'message': "hello acapp server",
+        }))*/
     }
 
     receive_create_player(uuid, username, photo) {
