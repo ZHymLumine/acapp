@@ -39,11 +39,12 @@ class AcGameMenu {
 
         this.$single_mode.click(function(){
             outer.hide(); //关闭menu界面
-            outer.root.playground.show(); //显示playground界面
+            outer.root.playground.show("single mode"); //显示单人游戏界面
         });
 
         this.$multi_mode.click(function(){
-            console.log("click multi");
+            outer.hide();
+            outer.root.playground.show("multi mode");   // 显示多人游戏界面
         });
 
         this.$settings.click(function(){
@@ -68,6 +69,17 @@ class AcGameObject {
 
         this.has_called_start = false;  //是否执行过start函数
         this.timedelta = 0;     // 当前帧距离上一帧的时间 单位：ms
+        this.uuid = this.create_uuid();
+    }
+
+
+    create_uuid() {
+        let res = "";
+        for (let i = 0; i < 8; i ++) {
+            let x = parseInt(Math.floor(Math.random() * 10));   // 返回[0, 10)之间的数
+            res += x;
+        }
+        return res;
     }
 
     start() {   //只会在第一帧执行一次
@@ -188,7 +200,7 @@ class Particle extends AcGameObject {
 
 }
 class Player extends AcGameObject {
-    constructor(playground, x, y, radius, color, speed, is_me) {
+    constructor(playground, x, y, radius, color, speed, character, username, photo) {
         super();
         this.playground = playground;
         this.ctx = this.playground.game_map.ctx;
@@ -200,20 +212,22 @@ class Player extends AcGameObject {
         this.move_length = 0;
         this.color = color;
         this.speed = speed;
-        this.is_me = is_me;
+        this.character = character;
+        this.username = username;
+        this.photo = photo;
         this.eps = 0.01;
         this.friction = 0.9     // 摩擦系数，作用于受击速度
         this.spent_time = 0;    // 游戏时长
         this.cur_skill = null; //当前技能（非快捷施法）
 
-        if (this.is_me) {
+        if (this.character !== "robot") {   // 不是机器人时渲染自己或敌人的头像
             this.img = new Image();
-            this.img.src = this.playground.root.settings.photo;
+            this.img.src = this.photo;
         }
     }
 
     start() {
-        if (this.is_me) {    //如果是自己，用鼠标键盘操作
+        if (this.character === "me") {    //如果是自己，用鼠标键盘操作
             this.add_listening_events();
         } else {    //AI敌人
             let tx = Math.random() * this.playground.width / this.playground.scale;     //随机一个地点，让敌人走过去
@@ -324,7 +338,7 @@ class Player extends AcGameObject {
         this.spent_time += this.timedelta / 1000;   //游戏经过时间
 
         // 游戏时间大于4秒，每300帧AI发射一个火球
-        if(!this.is_me && this.spent_time > 4 && Math.random() < 1 / 300.0) {
+        if(this.character === "robot" && this.spent_time > 4 && Math.random() < 1 / 300.0) {
             let player = this.playground.players[Math.floor(Math.random() * this.playground.players.length)]; //随机一个目标
             if (this !== player) {
                 //射向0.3秒后的位置
@@ -344,7 +358,7 @@ class Player extends AcGameObject {
             if (this.move_length < this.eps) {
                 this.move_length = 0;
                 this.vx = this.vy = 0;
-                if (!this.is_me) {  //AI走到目的地时，再随机一个目标位置
+                if (this.character === "robot") {  //AI走到目的地时，再随机一个目标位置
                     let tx = Math.random() * this.playground.width / this.playground.scale;     //随机一个地点，让敌人走过去
                     let ty = Math.random() * this.playground.height / this.playground.scale;
                     this.move_to(tx, ty);
@@ -361,7 +375,7 @@ class Player extends AcGameObject {
 
     render() {
         let scale = this.playground.scale;
-        if (this.is_me) {
+        if (this.character !== "robot") {
             this.ctx.save();
             this.ctx.beginPath();
             this.ctx.arc(this.x * scale, this.y * scale, this.radius * scale, 0, Math.PI * 2, false);
@@ -382,7 +396,7 @@ class Player extends AcGameObject {
         for (let i = 0; i < this.playground.players.length; i++) {
             let player = this.playground.players[i];
             if (this === player) {
-                if (this.is_me) {
+                if (this.character === "me") {
                     this.detach_listening_events();
                     //console.log("me is out");
                 }
@@ -465,6 +479,65 @@ class FireBall extends AcGameObject {
         this.ctx.fill();
     }
 }
+class MultiPlayerSocket {
+    constructor(playground) {
+        this.playground = playground;
+
+        this.ws = new WebSocket("wss://app4877.acapp.acwing.com.cn/wss/multiplayer/");
+
+        this.start();
+    }
+
+    start() {
+    }
+
+    // 接收服务器发回的json数据
+    receive() {
+        let outer = this;
+
+        this.ws.onmessage = function(e) {
+            let data = JSON.parse(e.data);  // 将字符串转成字典
+            let uuid = data.uuid;
+            if (uuid == outer.uuid) {       // 忽略服务器发给自己的消息
+                return false;
+            }
+
+            let event = data.event;
+            if (event == "create_player") {     // 根据类型调用相应的函数处理
+                outer.receive_create_player(uuid, data.username, data.photo);
+            }
+        }
+    }
+
+    // 向服务器发消息
+    send_create_player(username, photo) {
+        let outer = this;
+        this.ws.send(JSON.stringify({
+            'event': "create_player",
+            'uuid': outer.uuid,
+            'username': username,
+            'photo': photo,
+        }));
+    }
+
+    receive_create_player(uuid, username, photo) {
+        // 新建一个用户
+        let player = new Player(
+            this.playground,
+            this.playground.width / 2 / this.playground.scale,
+            0.5,
+            0.05,
+            "white",
+            0.15,
+            "enemy",
+            username,
+            photo
+        );
+
+        player.uuid == uuid;
+        this.playground.players.push(player);
+    }
+}
 class AcGamePlayground {
     constructor(root) {
         this.root = root;
@@ -490,7 +563,6 @@ class AcGamePlayground {
     }
 
     resize() {
-        console.log("resize");
         this.width = this.$playground.width();
         this.height = this.$playground.height();
         let unit = Math.min(this.width / 16, this.height / 9);  // 以最小的作为基准，渲染
@@ -504,25 +576,37 @@ class AcGamePlayground {
     }
 
 
-    show() {    //关闭playground界面
+    show(mode) {    // 打开playground界面
+        let outer = this;
+
         this.$playground.show();
 
-        this.resize();
 
         this.width = this.$playground.width();
         this.height = this.$playground.height();
         this.game_map = new GameMap(this);  //生成地图
 
+        this.resize();
         this.players = [];
-        this.players.push(new Player(this, this.width / 2 / this.scale, 0.5, 0.05 , "white", 0.15 , true));
+        // 用字符串表示不同player
+        this.players.push(new Player(this, this.width / 2 / this.scale, 0.5, 0.05 , "white", 0.15 , "me", this.root.settings.username, this.root.settings.photo));
 
         //创建敌人
-        for (let i = 0; i < 5; i ++) {
-            this.players.push(new Player(this, this.width / 2 / this.scale, 0.5, 0.05, this.get_random_color(), 0.15, false));
+        if (mode === "single mode") {
+            for (let i = 0; i < 5; i ++) {
+                this.players.push(new Player(this, this.width / 2 / this.scale, 0.5, 0.05, this.get_random_color(), 0.15, "robot"));
+            }
+        } else if (mode === "multi mode") {
+            this.multi_player_socket = new MultiPlayerSocket(this);
+            this.multi_player_socket.uuid = this.players[0].uuid;   // 自己的uuid(始终是第一个player)
+
+            this.multi_player_socket.ws.onopen = function() {     // 连接建立后，向server发送消息
+                outer.multi_player_socket.send_create_player(outer.root.settings.username, outer.root.settings.photo);
+            }
         }
     }
 
-    hide() {
+    hide() {        // 关闭playground界面
         this.$playground.hide();
     }
 }

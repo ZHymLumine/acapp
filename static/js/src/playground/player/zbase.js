@@ -1,5 +1,5 @@
 class Player extends AcGameObject {
-    constructor(playground, x, y, radius, color, speed, is_me) {
+    constructor(playground, x, y, radius, color, speed, character, username, photo) {
         super();
         this.playground = playground;
         this.ctx = this.playground.game_map.ctx;
@@ -11,20 +11,22 @@ class Player extends AcGameObject {
         this.move_length = 0;
         this.color = color;
         this.speed = speed;
-        this.is_me = is_me;
+        this.character = character;
+        this.username = username;
+        this.photo = photo;
         this.eps = 0.01;
         this.friction = 0.9     // 摩擦系数，作用于受击速度
         this.spent_time = 0;    // 游戏时长
         this.cur_skill = null; //当前技能（非快捷施法）
 
-        if (this.is_me) {
+        if (this.character !== "robot") {   // 不是机器人时渲染自己或敌人的头像
             this.img = new Image();
-            this.img.src = this.playground.root.settings.photo;
+            this.img.src = this.photo;
         }
     }
 
     start() {
-        if (this.is_me) {    //如果是自己，用鼠标键盘操作
+        if (this.character === "me") {    //如果是自己，用鼠标键盘操作
             this.add_listening_events();
         } else {    //AI敌人
             let tx = Math.random() * this.playground.width / this.playground.scale;     //随机一个地点，让敌人走过去
@@ -135,7 +137,7 @@ class Player extends AcGameObject {
         this.spent_time += this.timedelta / 1000;   //游戏经过时间
 
         // 游戏时间大于4秒，每300帧AI发射一个火球
-        if(!this.is_me && this.spent_time > 4 && Math.random() < 1 / 300.0) {
+        if(this.character === "robot" && this.spent_time > 4 && Math.random() < 1 / 300.0) {
             let player = this.playground.players[Math.floor(Math.random() * this.playground.players.length)]; //随机一个目标
             if (this !== player) {
                 //射向0.3秒后的位置
@@ -155,7 +157,7 @@ class Player extends AcGameObject {
             if (this.move_length < this.eps) {
                 this.move_length = 0;
                 this.vx = this.vy = 0;
-                if (!this.is_me) {  //AI走到目的地时，再随机一个目标位置
+                if (this.character === "robot") {  //AI走到目的地时，再随机一个目标位置
                     let tx = Math.random() * this.playground.width / this.playground.scale;     //随机一个地点，让敌人走过去
                     let ty = Math.random() * this.playground.height / this.playground.scale;
                     this.move_to(tx, ty);
@@ -172,7 +174,7 @@ class Player extends AcGameObject {
 
     render() {
         let scale = this.playground.scale;
-        if (this.is_me) {
+        if (this.character !== "robot") {
             this.ctx.save();
             this.ctx.beginPath();
             this.ctx.arc(this.x * scale, this.y * scale, this.radius * scale, 0, Math.PI * 2, false);
@@ -193,7 +195,7 @@ class Player extends AcGameObject {
         for (let i = 0; i < this.playground.players.length; i++) {
             let player = this.playground.players[i];
             if (this === player) {
-                if (this.is_me) {
+                if (this.character === "me") {
                     this.detach_listening_events();
                     //console.log("me is out");
                 }

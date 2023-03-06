@@ -39,11 +39,12 @@ class AcGameMenu {
 
         this.$single_mode.click(function(){
             outer.hide(); //关闭menu界面
-            outer.root.playground.show(); //显示playground界面
+            outer.root.playground.show("single mode"); //显示单人游戏界面
         });
 
         this.$multi_mode.click(function(){
-            console.log("click multi");
+            outer.hide();
+            outer.root.playground.show("multi mode");   // 显示多人游戏界面
         });
 
         this.$settings.click(function(){
