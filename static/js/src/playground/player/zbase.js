@@ -18,14 +18,34 @@ class Player extends AcGameObject {
         this.friction = 0.9     // 摩擦系数，作用于受击速度
         this.spent_time = 0;    // 游戏时长
         this.cur_skill = null; //当前技能（非快捷施法）
+        this.fireballs = [];    // 存该用户发射的所有火球，便于删除火球
 
         if (this.character !== "robot") {   // 不是机器人时渲染自己或敌人的头像
             this.img = new Image();
             this.img.src = this.photo;
         }
+
+        if (this.character === "me") {
+            this.fireball_coldtime = 3; // 3秒冷却
+            this.fireball_img = new Image();
+            this.fireball_img.src = "https://cdn.acwing.com/media/article/image/2021/12/02/1_9340c86053-fireball.png";
+
+            this.blink_coldtime = 5;
+            this.blink_img = new Image();
+            this.blink_img.src = "https://cdn.acwing.com/media/article/image/2021/12/02/1_daccabdc53-blink.png";
+        }
     }
 
     start() {
+        this.playground.player_count ++;
+        this.playground.notice_board.write("已就绪: " + this.playground.player_count + "人");
+
+        // 场上大于3人开始游戏
+        if (this.playground.player_count >= 3) {
+            this.playground.state = "fighting";
+            this.playground.notice_board.write("Fighting");
+        }
+
         if (this.character === "me") {    //如果是自己，用鼠标键盘操作
             this.add_listening_events();
         } else if (this.character === "robot"){    //AI敌人
@@ -43,21 +63,62 @@ class Player extends AcGameObject {
             return false;
         });
         this.playground.game_map.$canvas.mousedown(function(e) {
+            if (outer.playground.state !== "fighting")
+                return false;
+
             const rect = outer.ctx.canvas.getBoundingClientRect();  //获取画布的矩形
             if (e.which === 3) {  //鼠标右键
-                outer.move_to((e.clientX - rect.left) / outer.playground.scale, (e.clientY - rect.top) / outer.playground.scale); //鼠标点击坐标相对于整个屏幕，映射到画布中的坐标
+                let tx = (e.clientX - rect.left) / outer.playground.scale;
+                let ty = (e.clientY - rect.top) / outer.playground.scale;
+                outer.move_to(tx, ty); //鼠标点击坐标相对于整个屏幕，映射到画布中的坐标
+
+                if (outer.playground.mode === "multi mode") {
+                    outer.playground.multi_player_socket.send_move_to(tx, ty);  // 多人模式，与服务器通信
+                }
+
             } else if (e.which === 1) { //左键
+                let tx = (e.clientX - rect.left) / outer.playground.scale;
+                let ty = (e.clientY - rect.top) / outer.playground.scale;
                 if (outer.cur_skill === "fireball") {
-                    outer.shoot_fireball((e.clientX - rect.left) / outer.playground.scale, (e.clientY - rect.top) / outer.playground.scale);
+                    if (outer.fireball_coldtime > outer.eps)
+                        return false;
+
+                    let fireball = outer.shoot_fireball(tx, ty);
+
+                    if (outer.playground.mode === "multi mode") {
+                        outer.playground.multi_player_socket.send_shoot_fireball(tx, ty, fireball.uuid);    // 同步火球
+                    }
+                } else if (outer.cur_skill === "blink") {   //闪现
+                    if (outer.blink_coldtime > outer.eps) {
+                        return false;
+                    }
+
+                    outer.blink(tx, ty);
+
+                    if (outer.playground.mode === "multi mode") {
+                        outer.playground.multi_player_socket.send_blink(tx, ty);    // 广播，同步闪现操作
+                    }
                 }
                 outer.cur_skill = null;
             }
         });
         //获取键盘事件
         $(window).keydown(function(e) {
+            if (outer.playground.state !== "fighting")
+                return false;
+
             if (e.which === 81) {    // q键
+                if (outer.fireball_coldtime > outer.eps) {   // 还未冷却
+                    return true;
+                }
                 outer.cur_skill = "fireball";
                 return false;
+            } else if (e.which === 70) {    // f
+                if (outer.blink_coldtime > outer.eps) {
+                    return true;
+                }
+                outer.cur_skill = "blink";
+                return true;
             }
         });
     }
@@ -80,7 +141,34 @@ class Player extends AcGameObject {
         let speed = 0.5;
         let move_length = 1;
         let damage = 0.01;
-        new FireBall(this.playground, this, x, y, radius, vx, vy, color, speed, move_length, damage);
+        let fireball = new FireBall(this.playground, this, x, y, radius, vx, vy, color, speed, move_length, damage);
+        this.fireballs.push(fireball);  // 存到火球数组
+
+        this.fireball_coldtime = 3;
+        return fireball;
+    }
+
+    // 删除火球
+    destroy_fireball(uuid) {
+        for (let i = 0; i < this.fireballs.length; i ++) {
+            let fireball = this.fireballs[i];
+            if (fireball.uuid === uuid) {
+                fireball.destroy();
+                break;
+            }
+        }
+    }
+
+    // 闪现
+    blink(tx, ty) {
+        let d = this.get_dist(this.x, this.y, tx, ty);
+        d = Math.min(d, 0.8);   // 最多闪现0.8倍高度
+        let angle = Math.atan2(ty - this.y, tx - this.x);
+        this.x += d * Math.cos(angle);
+        this.y += d * Math.sin(angle);
+
+        this.blink_coldtime = 5;    //重置冷却
+        this.move_length = 0;   // 闪现后停下来
     }
 
     //计算两点之间的距离
@@ -127,14 +215,34 @@ class Player extends AcGameObject {
     }
 
 
-    update() {
-        this.update_move();
+    receive_attack(x, y, angle, damage, ball_uuid, attacker) {
+        attacker.destroy_fireball(ball_uuid);   // 删掉攻击者的火球
+        // 同步自己的坐标
+        this.x = x;
+        this.y = y;
+        this.is_attacked(angle, damage);
+    }
 
+    update() {
+        this.spent_time += this.timedelta / 1000;   //游戏经过时间
+
+        if (this.character === "me" && this.playground.state === "fighting") {
+            this.update_coldtime();
+        }
+        this.update_move();
         this.render();
     }
 
+    //  更新技能的冷却时间
+    update_coldtime() {
+        this.fireball_coldtime -= this.timedelta / 1000;
+        this.fireball_coldtime = Math.max(this.fireball_coldtime, 0);
+
+        this.blink_coldtime -= this.timedelta / 1000;
+        this.blink_coldtime = Math.max(this.blink_coldtime, 0);
+    }
+
     update_move() {
-        this.spent_time += this.timedelta / 1000;   //游戏经过时间
 
         // 游戏时间大于4秒，每300帧AI发射一个火球
         if(this.character === "robot" && this.spent_time > 4 && Math.random() < 1 / 300.0) {
@@ -189,9 +297,57 @@ class Player extends AcGameObject {
             this.ctx.fill();
         }
 
+        if (this.character === "me" && this.playground.state === "fighting") {
+            this.render_skill_coldtime();
+        }
+    }
+
+    render_skill_coldtime() {
+        let scale = this.playground.scale;
+        let x = 1.5, y = 0.9, r = 0.04;
+
+        this.ctx.save();
+        this.ctx.beginPath();
+        this.ctx.arc(x * scale, y * scale, r * scale, 0, Math.PI * 2, false);
+        this.ctx.stroke();
+        this.ctx.clip();
+        this.ctx.drawImage(this.fireball_img, (x - r) * scale, (y - r) * scale, r * 2 * scale, r * 2 * scale);
+        this.ctx.restore();
+
+        if (this.fireball_coldtime > 0) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(x * scale, y * scale);  // 从圆心开始画
+            this.ctx.arc(x * scale, y * scale, r * scale, 0 - Math.PI / 2, Math.PI * 2 * (1 - this.fireball_coldtime / 3) - Math.PI / 2, true);
+            this.ctx.lineTo(x * scale, y * scale);
+            this.ctx.fillStyle = "rgba(0, 0, 255, 0.6)";
+            this.ctx.fill();
+        }
+
+        x = 1.62, y = 0.9, r = 0.04;
+
+        this.ctx.save();
+        this.ctx.beginPath();
+        this.ctx.arc(x * scale, y * scale, r * scale, 0, Math.PI * 2, false);
+        this.ctx.stroke();
+        this.ctx.clip();
+        this.ctx.drawImage(this.blink_img, (x - r) * scale, (y - r) * scale, r * 2 * scale, r * 2 * scale);
+        this.ctx.restore();
+
+        if (this.blink_coldtime > 0) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(x * scale, y * scale);  // 从圆心开始画
+            this.ctx.arc(x * scale, y * scale, r * scale, 0 - Math.PI / 2, Math.PI * 2 * (1 - this.blink_coldtime / 5) - Math.PI / 2, true);
+            this.ctx.lineTo(x * scale, y * scale);
+            this.ctx.fillStyle = "rgba(0, 0, 255, 0.6)";
+            this.ctx.fill();
+        }
     }
 
     on_destroy() {
+        if (this.character === "me") {
+            this.playground.state = "over";
+        }
+
         for (let i = 0; i < this.playground.players.length; i++) {
             let player = this.playground.players[i];
             if (this === player) {
@@ -200,6 +356,7 @@ class Player extends AcGameObject {
                     //console.log("me is out");
                 }
                 this.playground.players.splice(i, 1);
+                break;
             }
         }
     }

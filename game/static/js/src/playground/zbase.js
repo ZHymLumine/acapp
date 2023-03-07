@@ -42,9 +42,16 @@ class AcGamePlayground {
         this.$playground.show();
 
 
+
         this.width = this.$playground.width();
         this.height = this.$playground.height();
         this.game_map = new GameMap(this);  //生成地图
+
+        this.mode = mode;   // 记录游戏模式
+        this.state = "waiting";     //游戏状态 waiting -> fighting -> over
+        this.notice_board = new NoticeBoard(this);
+        this.player_count = 0;  // 统计玩家数量
+
 
         this.resize();
         this.players = [];

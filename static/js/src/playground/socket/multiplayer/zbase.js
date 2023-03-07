@@ -25,9 +25,29 @@ class MultiPlayerSocket {
             let event = data.event;
             if (event === "create_player") {     // 根据类型调用相应的函数处理
                 outer.receive_create_player(uuid, data.username, data.photo);
+            } else if (event === "move_to") {
+                outer.receive_move_to(uuid, data.tx, data.ty);
+            } else if (event === "shoot_fireball") {
+                outer.receive_shoot_fireball(uuid, data.tx, data.ty, data.ball_uuid);
+            } else if (event === "attack") {
+                outer.receive_attack(uuid, data.attackee_uuid, data.x, data.y, data.angle, data.damage, data.ball_uuid);
+            } else if (event === "blink") {
+                outer.receive_blink(uuid, data.tx, data.ty);
             }
         }
     }
+
+    get_player(uuid) {
+        let players = this.playground.players;
+        for (let i = 0; i < players.length; i ++ ) {
+            let player = players[i];
+            if (player.uuid === uuid)
+                return player;
+        }
+
+        return null;
+    }
+
 
     // 向服务器发消息
     send_create_player(username, photo) {
@@ -38,10 +58,6 @@ class MultiPlayerSocket {
             'username': username,
             'photo': photo,
         }));
-        /*
-        this.ws.send(JSON.stringify({
-            'message': "hello acapp server",
-        }))*/
     }
 
     receive_create_player(uuid, username, photo) {
@@ -58,7 +74,84 @@ class MultiPlayerSocket {
             photo
         );
 
-        player.uuid == uuid;
+        player.uuid = uuid;
         this.playground.players.push(player);
+    }
+
+    send_move_to(tx, ty) {
+        let outer = this;
+        this.ws.send(JSON.stringify({
+            'event': "move_to",
+            'uuid': outer.uuid,
+            'tx': tx,
+            'ty': ty,
+        }));
+    }
+
+    receive_move_to(uuid, tx, ty) {
+        let player = this.get_player(uuid); // 找到uuid的用户，并调用他的move_to函数
+        if (player) {
+            player.move_to(tx, ty);
+        }
+    }
+
+    send_shoot_fireball(tx, ty, ball_uuid) {
+        let outer = this;
+        this.ws.send(JSON.stringify({
+            'event': "shoot_fireball",
+            'uuid': outer.uuid,
+            'tx': tx,
+            'ty': ty,
+            'ball_uuid': ball_uuid,
+        }));
+    }
+
+    receive_shoot_fireball(uuid, tx, ty, ball_uuid) {
+        let player = this.get_player(uuid);
+        if (player) {
+            let fireball = player.shoot_fireball(tx, ty);   // 广播发射火球
+            fireball.uuid = ball_uuid;      // 火球唯一标识
+        }
+    }
+
+    send_attack(attackee_uuid, x, y, angle, damage, ball_uuid) {
+        let outer = this;
+        this.ws.send(JSON.stringify({
+            'event': "attack",
+            'uuid': outer.uuid,
+            'attackee_uuid': attackee_uuid,
+            'x': x,
+            'y': y,
+            'angle': angle,
+            'damage': damage,
+            'ball_uuid': ball_uuid,
+        }));
+    }
+
+    // 攻击者id，被攻击者id， 被攻击的x，y坐标，角度，伤害，火球id
+    receive_attack(uuid, attackee_uuid, x, y, angle, damage, ball_uuid) {
+        let attacker = this.get_player(uuid);
+        let attackee = this.get_player(attackee_uuid);
+
+        if (attacker && attackee) {
+            attackee.receive_attack(x, y, angle, damage, ball_uuid, attacker);      // 调用player的receive_attack函数处理被攻击事件
+        }
+    }
+
+    send_blink(tx, ty) {
+        let outer = this;
+        this.ws.send(JSON.stringify({
+            'event': "blink",
+            'uuid': outer.uuid,
+            'tx': tx,
+            'ty': ty,
+        }));
+    }
+
+    receive_blink(uuid, tx, ty) {
+        let player = this.get_player(uuid);
+        if (player) {
+            player.blink(tx, ty);
+        }
     }
 }
