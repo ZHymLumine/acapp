@@ -64,7 +64,7 @@ class Player extends AcGameObject {
         });
         this.playground.game_map.$canvas.mousedown(function(e) {
             if (outer.playground.state !== "fighting")
-                return false;
+                return true;
 
             const rect = outer.ctx.canvas.getBoundingClientRect();  //获取画布的矩形
             if (e.which === 3) {  //鼠标右键
@@ -103,7 +103,19 @@ class Player extends AcGameObject {
             }
         });
         //获取键盘事件
-        $(window).keydown(function(e) {
+        this.playground.game_map.$canvas.keydown(function(e) {
+            if (e.which === 13) {   // Enter键
+                if (outer.playground.mode === "multi mode") {   // 打开聊天框
+                    outer.playground.chat_field.show_input();
+                    return false;
+                }
+            } else if (e.which === 27) {    // Esc
+                if (outer.playground.mode === "multi mode") {   // 关闭聊天框
+                    outer.playground.chat_field.hide_input();
+                    return false;
+                }
+            }
+
             if (outer.playground.state !== "fighting")
                 return true;
 
