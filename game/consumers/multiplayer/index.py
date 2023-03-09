@@ -3,9 +3,20 @@ import json
 from django.conf import settings
 from django.core.cache import cache
 
+from thrift import Thrift
+from thrift.transport import TSocket
+from thrift.transport import TTransport
+from thrift.protocol import TBinaryProtocol
+
+from match_system.src.match_server.match_service import Match
+from game.models.player.player import Player
+from channels.db import database_sync_to_async  # 异步处理数据库
 
 class MultiPlayer(AsyncWebsocketConsumer):
     async def connect(self):    # 与服务器建立连接
+        await self.accept()
+
+    """
         self.room_name = None
         for i in range(1000):   # 上限1000个游戏房间
             name = "room-%d" % (i)
@@ -31,13 +42,45 @@ class MultiPlayer(AsyncWebsocketConsumer):
                 'photo': player['photo']
             }))
         await self.channel_layer.group_add(self.room_name, self.channel_name)   # 加入同一个组
+    """
 
     async def disconnect(self, close_code):
         print('disconnect')
-        await self.channel_layer.group_discard(self.room_name, self.channel_name)
+        if self.room_name:
+            await self.channel_layer.group_discard(self.room_name, self.channel_name)
 
 
     async def create_player(self, data):
+        self.room_name = None
+        self.uuid = data['uuid']
+        # Make socket
+        transport = TSocket.TSocket('localhost', 9090)
+
+        # Buffering is critical. Raw sockets are very slow
+        transport = TTransport.TBufferedTransport(transport)
+
+        # Wrap in a protocol
+        protocol = TBinaryProtocol.TBinaryProtocol(transport)
+
+        # Create a client to use the protocol encoder
+        client = Match.Client(protocol)
+
+        # 从数据库中获取玩家
+        def db_get_player():
+            return Player.objects.get(user__username=data['username'])
+
+        player = await database_sync_to_async(db_get_player)()
+
+        # Connect!
+        transport.open()
+
+        # 向server发送
+        client.add_player(player.score, data['uuid'], data['username'], data['photo'], self.channel_name)
+
+        # Close!
+        transport.close()
+
+        """
         players = cache.get(self.room_name)
         players.append({            # 将玩家自己加入到对局信息中
             'uuid': data['uuid'],
@@ -55,6 +98,7 @@ class MultiPlayer(AsyncWebsocketConsumer):
                 'photo': data['photo'],
             }
         )
+        """
 
     async def move_to(self, data):
         await self.channel_layer.group_send(
@@ -123,7 +167,12 @@ class MultiPlayer(AsyncWebsocketConsumer):
 
     # handler function
     async def group_send_event(self, data):
+        if not self.room_name:
+            keys = cache.keys("*%s*" % (self.uuid))
+            if keys:
+                self.room_name = keys[0]
         await self.send(text_data=json.dumps(data))
+
 
     async def receive(self, text_data):     # 接收前端发来的消息(send_create_player)
         data = json.loads(text_data)
