@@ -15,11 +15,30 @@ class AcGamePlayground {
         return colors[Math.floor(Math.random() * 5)];
     }
 
-    start() { //显示playground界面
+
+    create_uuid() {
+        let res = "";
+        for (let i = 0; i < 8; i ++ ) {
+            let x = parseInt(Math.floor(Math.random() * 10));   //[0, 10)
+            res += x;
+        }
+        return res;
+    }
+
+
+    start() {
         let outer = this;
-        $(window).resize(function() {
+        let uuid = this.create_uuid();
+        $(window).on(`resize.${uuid}`, function(){
             outer.resize();
         });
+
+        //acapp 端为多个窗口分别绑定事件函数
+        if (this.root.AcWingOS) {
+            outer.root.AcWingOS.api.window.on_close(function() {
+                $(window).off(`resize.${uuid}`);
+            });
+        }
     }
 
     resize() {
@@ -50,6 +69,7 @@ class AcGamePlayground {
         this.mode = mode;   // 记录游戏模式
         this.state = "waiting";     //游戏状态 waiting -> fighting -> over
         this.notice_board = new NoticeBoard(this);
+        this.score_board = new ScoreBoard(this);
         this.player_count = 0;  // 统计玩家数量
 
 
@@ -75,6 +95,27 @@ class AcGamePlayground {
     }
 
     hide() {        // 关闭playground界面
+        // 清空所有游戏元素
+        while(this.players && this.players.length > 0) {
+            this.players[0].destroy();
+        }
+
+        if (this.game_map) {
+            this.game_map.destroy();
+            this.game_map = null;
+        }
+
+        if (this.notice_board) {
+            this.notice_board.destroy();
+            this.notice_board = null;
+        }
+
+        if (this.score_board) {
+            this.score_board.destroy();
+            this.score_board = null;
+        }
+        this.$playground.empty();   // 清空所有html标签
+
         this.$playground.hide();
     }
 }

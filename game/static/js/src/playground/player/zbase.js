@@ -156,7 +156,7 @@ class Player extends AcGameObject {
         let fireball = new FireBall(this.playground, this, x, y, radius, vx, vy, color, speed, move_length, damage);
         this.fireballs.push(fireball);  // 存到火球数组
 
-        this.fireball_coldtime = 3;
+        this.fireball_coldtime = 0.1;
         return fireball;
     }
 
@@ -238,11 +238,24 @@ class Player extends AcGameObject {
     update() {
         this.spent_time += this.timedelta / 1000;   //游戏经过时间
 
+        this.update_win();
+
         if (this.character === "me" && this.playground.state === "fighting") {
             this.update_coldtime();
         }
         this.update_move();
+
         this.render();
+    }
+
+
+    // 判断胜利
+    update_win() {
+        // fighting状态，只有一名玩家并且是自己
+        if (this.playground.state === "fighting" && this.character === "me" && this.playground.players.length ===  1) {
+            this.playground.state = "over";
+            this.playground.score_board.win();
+        }
     }
 
     //  更新技能的冷却时间
@@ -356,17 +369,15 @@ class Player extends AcGameObject {
     }
 
     on_destroy() {
-        if (this.character === "me") {
+        // 自己死亡，并且处于fighting状态，失败
+        if (this.character === "me" && this.playground.state === "fighting") {
             this.playground.state = "over";
+            this.playground.score_board.lose();
         }
 
         for (let i = 0; i < this.playground.players.length; i++) {
             let player = this.playground.players[i];
             if (this === player) {
-                if (this.character === "me") {
-                    this.detach_listening_events();
-                    //console.log("me is out");
-                }
                 this.playground.players.splice(i, 1);
                 break;
             }
