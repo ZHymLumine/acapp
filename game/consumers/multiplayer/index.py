@@ -14,39 +14,17 @@ from channels.db import database_sync_to_async  # 异步处理数据库
 
 class MultiPlayer(AsyncWebsocketConsumer):
     async def connect(self):    # 与服务器建立连接
-        await self.accept()
+        user = self.scope['user']
+        print(user, user.is_authenticated)
+        # 用户验证过的话建立连接
+        if user.is_authenticated:
+            await self.accept()
+        else:
+            await self.close()
 
-    """
-        self.room_name = None
-        for i in range(1000):   # 上限1000个游戏房间
-            name = "room-%d" % (i)
-            # 当前房间为空，或房间内人数不到ROOM_CAPACITY
-            if not cache.has_key(name) or len(cache.get(name)) < settings.ROOM_CAPACITY:
-                self.room_name = name
-                break
-        # 没有空闲房间，不创建连接
-        if not self.room_name:
-            return
-
-        # 有空闲房间，创建与server的连接
-        await self.accept()
-
-        if not cache.has_key(self.room_name):   # 房间不存在，创建新房间
-            cache.set(self.room_name, [], 3600) # 有效期一小时
-
-        for player in cache.get(self.room_name):    # 把该房间已存在的用户信息发送到新加入的用户的游戏界面中
-            await self.send(text_data=json.dumps({  # 字典转成字符串
-                'event': "create_player",
-                'uuid': player['uuid'],             # 其他用户的uuid， 发送回前端时，不会被忽略
-                'username': player['username'],
-                'photo': player['photo']
-            }))
-        await self.channel_layer.group_add(self.room_name, self.channel_name)   # 加入同一个组
-    """
 
     async def disconnect(self, close_code):
-        print('disconnect')
-        if self.room_name:
+        if hasattr(self, 'room_name') and self.room_name:
             await self.channel_layer.group_discard(self.room_name, self.channel_name)
 
 

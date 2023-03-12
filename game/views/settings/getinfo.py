@@ -1,35 +1,19 @@
-from django.http import JsonResponse
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from game.models.player.player import Player
 
 
-def getinfo_acapp(request):
-    player = Player.objects.all()[0]    # 取出数据库中的第一个用户
-    return JsonResponse({
-        'result' : "success",
-        'username' : player.user.username,
-        'photo' : player.photo,
-    })
+class InfoView(APIView):
+    permission_classes = ([IsAuthenticated])  # 需要用户验证
 
+    def get(self, request):
+        user = request.user
+        player = Player.objects.get(user=user)
 
-def getinfo_web(request):
-    user = request.user
-    if not user.is_authenticated: #登录
-        return JsonResponse({
-            'result': "not login"
+        # 用自带的Response函数返回
+        return Response({
+            'result': "success",
+            'username': user.username,
+            'photo': player.photo,
         })
-    else :
-        player = Player.objects.get(user=user)    # 取出数据库中的第一个用户
-        return JsonResponse({
-            'result' : "success",
-            'username' : player.user.username,
-            'photo' : player.photo,
-        })
-
-
-
-def getinfo(request):   # 处理请求
-    platform = request.GET.get("platform")
-    if platform == "ACAPP":
-        return getinfo_acapp(request)
-    else:
-        return getinfo_web(request)

@@ -156,7 +156,7 @@ class Player extends AcGameObject {
         let fireball = new FireBall(this.playground, this, x, y, radius, vx, vy, color, speed, move_length, damage);
         this.fireballs.push(fireball);  // 存到火球数组
 
-        this.fireball_coldtime = 0.1;
+        this.fireball_coldtime = 3;
         return fireball;
     }
 

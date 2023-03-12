@@ -4,6 +4,7 @@ import requests
 from django.contrib.auth.models import User
 from game.models.player.player import Player
 from random import randint
+from rest_framework_simplejwt.tokens import RefreshToken
 
 
 def receive_code(request):
@@ -40,10 +41,14 @@ def receive_code(request):
     players = Player.objects.filter(openid=openid)
     if players.exists():     # 如果该用户已存在，直接返回用户信息
         player = players[0]
+        refresh = RefreshToken.for_user(player.user)
+        # 把access token和refresh token 一起返回到acapp前端
         return JsonResponse({
             'result': "success",
             'username': player.user.username,
             'photo': player.photo,
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
         })
 
     get_userinfo_url = "https://www.acwing.com/third_party/api/meta/identity/getinfo/"
@@ -63,8 +68,12 @@ def receive_code(request):
     user = User.objects.create(username=username)
     player = Player.objects.create(user=user, photo=photo, openid=openid)
 
+    # 把access token和refresh token 一起返回到acapp前端
+    refresh = RefreshToken.for_user(user)
     return JsonResponse({
         'result': "success",
         'username': player.user.username,
         'photo': player.photo,
+        'access': str(refresh.access_token),
+        'refresh': str(refresh),
     })
